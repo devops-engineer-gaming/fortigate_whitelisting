@@ -1,0 +1,183 @@
+---
+- name: Init Whitelisting
+  block:
+
+    - name: Bake issue var for internal needs (trace commenting)
+      set_fact: 
+        issue: '{{ item.key }}'
+
+    - name: Retrieving payload from issues
+      community.general.jira:
+        uri: '{{ jira_server }}'
+        username: '{{ jira_user }}'
+        password: '{{ jira_api_token }}'
+        project: '{{ target_project }}'
+        operation: fetch
+        issue: '{{ item.key }}'
+      register: target
+
+    - name: Initiate WhiteList
+      set_fact:
+        target_data: 
+          client: '{{ target.meta.fields.customfield_10863.replace(" ", "") }}'
+          ips: '{{ target.meta.fields.customfield_11092.replace(" ", "").split(",") }}'
+          enviroments: '{{ target.meta.fields.customfield_10865[0].value }}'
+          components: '{{ target.meta.fields.components[0].name }}'
+
+    - name: Print targets
+      debug:
+        msg: ' {{ item }} '
+      with_items: " {{ target_data.ips }} "
+
+    - name: Set wrong ips counter
+      set_fact:
+        wrong_ips: 0
+
+    - name: Validate IPs with ipaddr filter
+      set_fact:
+        wrong_ips={{ wrong_ips | int + 1 }}
+      with_items: " {{ target_data.ips }} "
+      when:  not (item | ipaddr)
+
+    - name: Fail play if we have wrong IPs in payload
+      block:
+        - name: Comment on issue
+          community.general.jira:
+            uri: '{{ jira_server }}'
+            username: '{{ jira_user }}'
+            password: '{{ jira_api_token }}'
+            issue: '{{ item.key }}'
+            operation: comment
+            comment: "Task failed. Maybe IPs invalid format or other causes. Please, check logs and correct payload/fix instance"
+        - name: Fail the play
+          fail:
+            msg: "Stop the play because payload wrong or we have some problems on AWX instance or local laptop"
+      when: wrong_ips | int > 0
+
+    - name: Create IP ADDRESSES
+      fortios_firewall_address:
+        vdom: '{{ vdom }}'
+        access_token: '{{ forti_token_Stage }}'
+        firewall_address:
+          name: 'IP-{{ item }}'
+          type: '{{ (item is search("-"))|ternary("iprange","ipmask") }}'
+          subnet: '{{ (item is search("-"))|ternary(omit,item+((item is search("/"))|ternary(omit,"/32"))) }}'
+          start_ip: '{{ (item is search("-"))|ternary(item.split("-")[0],omit) }}'
+          end_ip: '{{ (item is search("-"))|ternary(item.split("-")[1],omit) }}'
+          associated_interface: '{{ interface }}'
+          comment: '{{ issue }}'
+        state: "present"
+      with_items: '{{ target_data.ips }}'
+      register: IPs
+
+    - name: Check if client group already exists
+      fortinet.fortios.fortios_configuration_fact:
+        vdom: '{{ vdom }}'
+        access_token: "{{ forti_token_Stage }}"
+        selector: firewall_addrgrp
+        params:
+          name: "GRP_EXT_AUTO_{{ target_data.client | upper }}"
+      ignore_errors: true
+      register: group_not_exists
+
+    - name: Create CLIENT GROUP
+      fortinet.fortios.fortios_firewall_addrgrp:
+        vdom:  '{{ vdom }}'
+        state: "present"
+        access_token: '{{ forti_token_Stage }}'
+        firewall_addrgrp:
+          allow_routing: "disable"
+          category: "default"
+          color: "5"
+          comment: '{{ issue }}'
+          name: 'GRP_EXT_AUTO_{{ target_data.client | upper }}'
+          type: "default"
+          uuid: "GRP_EXT_AUTO_{{ target_data.client | upper }}"
+          visibility: "enable"
+          member:
+            - name: 'IP-{{ IPs.results[0].item }}'
+      when: group_not_exists.failed == true
+
+    - name: Fetch info of client group for comments
+      fortinet.fortios.fortios_configuration_fact:
+        vdom: '{{ vdom }}'
+        access_token: '{{ forti_token_Stage }}'
+        selector: firewall_addrgrp
+        params:
+          name: 'GRP_EXT_AUTO_{{ target_data.client | upper }}'
+      register: client_group_info
+
+    - name: Fetch info of component group for comments
+      fortinet.fortios.fortios_configuration_fact:
+        vdom: '{{ vdom }}'
+        access_token: '{{ forti_token_Stage }}'
+        selector: firewall_addrgrp
+        params:
+          name: 'GRP_AUTO_{{ target_data.components | upper }}'
+      register: component_group_info
+
+    - name: Put target IPs in client group
+      fortinet.fortios.fortios_firewall_addrgrp:
+        vdom:  '{{ vdom }}'
+        state: "present"
+        access_token: '{{ forti_token_Stage }}'
+        member_path: member:name
+        member_state: present
+        firewall_addrgrp:
+          allow_routing: "disable"
+          category: "default"
+          color: "5"
+          comment: '{{ client_group_info.meta.results[0].comment  + "," + issue }}'
+          name: 'GRP_EXT_AUTO_{{ target_data.client | upper }}'
+          type: "default"
+          uuid: "GRP_EXT_AUTO_{{ target_data.client | upper }}"
+          visibility: "enable"
+          member: 
+          - name: 'IP-{{ item.item }}'
+      with_items: ' {{ IPs.results }} '
+      loop_control:
+        label: ' {{ IPs.results }} '
+
+    - name: Put target client group in external COMPONENT GROUP in policy
+      fortinet.fortios.fortios_firewall_addrgrp:
+        vdom:  '{{ vdom }}'
+        state: "present"
+        access_token: '{{ forti_token_Stage }}'
+        member_path: member:name
+        member_state: present
+        firewall_addrgrp:
+          allow_routing: "disable"
+          category: "default"
+          color: "5"
+          comment: '{{ component_group_info.meta.results[0].comment  + "," + issue }}'
+          name: 'GRP_AUTO_{{ target_data.components | upper }}'
+          type: "default"
+          uuid: "GRP_AUTO_{{ target_data.components | upper }}"
+          visibility: "enable"
+          member: 
+          - name: 'GRP_EXT_AUTO_{{ target_data.client | upper }}'
+
+    - name: Set the labels of created group for trace
+      community.general.jira:
+        uri: '{{ jira_server }}'
+        username: '{{ jira_user }}'
+        password: '{{ jira_api_token }}'
+        issue: '{{ item.key }}'
+        operation: edit
+      args:
+        fields:
+            labels:
+              - whitelisting
+              - 'GRP_EXT_AUTO_{{ target_data.client | upper }}'
+              - autocompleted
+
+    - name: Comment on issue
+      community.general.jira:
+        uri: '{{ jira_server }}'
+        username: '{{ jira_user }}'
+        password: '{{ jira_api_token }}'
+        issue: '{{ item.key }}'
+        operation: comment
+        comment: " {{ 'AutoWhitelisted for ' + target_data.components | upper +  ' using, created/updated GROUP_EXT_AUTO_' + 
+        target_data.client | upper  + ' group in firewall. Please check the results  \n List of whitelisted IPs:\n' + target_data.ips | join(',') | replace(',', ',\n')}} "
+  

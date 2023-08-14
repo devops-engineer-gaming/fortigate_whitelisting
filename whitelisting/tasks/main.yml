@@ -1,0 +1,25 @@
+---
+# tasks for fetch whitelisting tasks from Jira
+- name: Search for an whitelisting issues
+  community.general.jira:
+    uri: '{{ jira_server }}'
+    username: '{{ jira_user }}'
+    password: '{{ jira_api_token }}'
+    operation: search
+    project: "{{ target_project }}"
+    maxresults: 4
+    jql: 'project="{{ target_project }}" AND labels="{{ target_label }}" AND status="{{ target_status }}"'
+  args:
+    fields:
+      lastViewed: null
+  register: issues
+
+- name: Search result
+  debug:
+    msg: "Issues wasn't founded"
+  when: issues.meta.total == 0
+
+- name: Start Whitelisting
+  include_tasks: whitelisting.yml
+  with_items: '{{ issues.meta.issues }}'
+  when: issues.meta.total > 0
