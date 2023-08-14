@@ -27,7 +27,7 @@ Role Variables
 
 **fortigate_token** - Fortigate API Access Token for manage rules
 
-Role for parse Jira for whitelisting tasks and do whitelisting in Fortigate
+**P.S.** More of them doesnt place in vars and default, because in our production this keeps in inventory and there are part of commecrial secret
 
 Dependencies
 ------------
