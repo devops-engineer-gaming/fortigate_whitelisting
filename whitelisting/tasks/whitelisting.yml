@@ -57,7 +57,7 @@
     - name: Create IP ADDRESSES
       fortios_firewall_address:
         vdom: '{{ vdom }}'
-        access_token: '{{ forti_token_Stage }}'
+        access_token: '{{ fortigate_token }}'
         firewall_address:
           name: 'IP-{{ item }}'
           type: '{{ (item is search("-"))|ternary("iprange","ipmask") }}'
@@ -73,7 +73,7 @@
     - name: Check if client group already exists
       fortinet.fortios.fortios_configuration_fact:
         vdom: '{{ vdom }}'
-        access_token: "{{ forti_token_Stage }}"
+        access_token: "{{ fortigate_token }}"
         selector: firewall_addrgrp
         params:
           name: "GRP_EXT_AUTO_{{ target_data.client | upper }}"
@@ -84,7 +84,7 @@
       fortinet.fortios.fortios_firewall_addrgrp:
         vdom:  '{{ vdom }}'
         state: "present"
-        access_token: '{{ forti_token_Stage }}'
+        access_token: '{{ fortigate_token }}'
         firewall_addrgrp:
           allow_routing: "disable"
           category: "default"
@@ -101,7 +101,7 @@
     - name: Fetch info of client group for comments
       fortinet.fortios.fortios_configuration_fact:
         vdom: '{{ vdom }}'
-        access_token: '{{ forti_token_Stage }}'
+        access_token: '{{ fortigate_token }}'
         selector: firewall_addrgrp
         params:
           name: 'GRP_EXT_AUTO_{{ target_data.client | upper }}'
@@ -110,7 +110,7 @@
     - name: Fetch info of component group for comments
       fortinet.fortios.fortios_configuration_fact:
         vdom: '{{ vdom }}'
-        access_token: '{{ forti_token_Stage }}'
+        access_token: '{{ fortigate_token }}'
         selector: firewall_addrgrp
         params:
           name: 'GRP_AUTO_{{ target_data.components | upper }}'
@@ -120,7 +120,7 @@
       fortinet.fortios.fortios_firewall_addrgrp:
         vdom:  '{{ vdom }}'
         state: "present"
-        access_token: '{{ forti_token_Stage }}'
+        access_token: '{{ fortigate_token }}'
         member_path: member:name
         member_state: present
         firewall_addrgrp:
@@ -142,7 +142,7 @@
       fortinet.fortios.fortios_firewall_addrgrp:
         vdom:  '{{ vdom }}'
         state: "present"
-        access_token: '{{ forti_token_Stage }}'
+        access_token: '{{ fortigate_token }}'
         member_path: member:name
         member_state: present
         firewall_addrgrp:
