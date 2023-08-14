@@ -1,6 +1,5 @@
 ---
-# vars file for jira_parse
-jira_server: https://altenar.atlassian.net
+jira_server: ""
 
 target_label: "whitelisting"
 target_status: "In Progress"
