@@ -76,7 +76,7 @@
         access_token: "{{ fortigate_token }}"
         selector: firewall_addrgrp
         params:
-          name: "GRP_EXT_AUTO_{{ target_data.client | upper }}"
+          name: "GROUP_{{ target_data.client | upper }}"
       ignore_errors: true
       register: group_not_exists
 
@@ -90,9 +90,9 @@
           category: "default"
           color: "5"
           comment: '{{ issue }}'
-          name: 'GRP_EXT_AUTO_{{ target_data.client | upper }}'
+          name: 'GROUP_{{ target_data.client | upper }}'
           type: "default"
-          uuid: "GRP_EXT_AUTO_{{ target_data.client | upper }}"
+          uuid: "GROUP_{{ target_data.client | upper }}"
           visibility: "enable"
           member:
             - name: 'IP-{{ IPs.results[0].item }}'
@@ -104,7 +104,7 @@
         access_token: '{{ fortigate_token }}'
         selector: firewall_addrgrp
         params:
-          name: 'GRP_EXT_AUTO_{{ target_data.client | upper }}'
+          name: 'GROUP_{{ target_data.client | upper }}'
       register: client_group_info
 
     - name: Fetch info of component group for comments
@@ -113,7 +113,7 @@
         access_token: '{{ fortigate_token }}'
         selector: firewall_addrgrp
         params:
-          name: 'GRP_AUTO_{{ target_data.components | upper }}'
+          name: 'COMPONENT_{{ target_data.components | upper }}'
       register: component_group_info
 
     - name: Put target IPs in client group
@@ -128,9 +128,9 @@
           category: "default"
           color: "5"
           comment: '{{ client_group_info.meta.results[0].comment  + "," + issue }}'
-          name: 'GRP_EXT_AUTO_{{ target_data.client | upper }}'
+          name: 'GROUP_{{ target_data.client | upper }}'
           type: "default"
-          uuid: "GRP_EXT_AUTO_{{ target_data.client | upper }}"
+          uuid: "GROUP_{{ target_data.client | upper }}"
           visibility: "enable"
           member: 
           - name: 'IP-{{ item.item }}'
@@ -150,12 +150,12 @@
           category: "default"
           color: "5"
           comment: '{{ component_group_info.meta.results[0].comment  + "," + issue }}'
-          name: 'GRP_AUTO_{{ target_data.components | upper }}'
+          name: 'COMPONENT_{{ target_data.components | upper }}'
           type: "default"
-          uuid: "GRP_AUTO_{{ target_data.components | upper }}"
+          uuid: "COMPONENT_{{ target_data.components | upper }}"
           visibility: "enable"
           member: 
-          - name: 'GRP_EXT_AUTO_{{ target_data.client | upper }}'
+          - name: 'GROUP_{{ target_data.client | upper }}'
 
     - name: Set the labels of created group for trace
       community.general.jira:
@@ -168,7 +168,7 @@
         fields:
             labels:
               - whitelisting
-              - 'GRP_EXT_AUTO_{{ target_data.client | upper }}'
+              - 'GROUP_{{ target_data.client | upper }}'
               - autocompleted
 
     - name: Comment on issue
@@ -178,6 +178,6 @@
         password: '{{ jira_api_token }}'
         issue: '{{ item.key }}'
         operation: comment
-        comment: " {{ 'AutoWhitelisted for ' + target_data.components | upper +  ' using, created/updated GROUP_EXT_AUTO_' + 
+        comment: " {{ 'AutoWhitelisted for ' + target_data.components | upper +  ' using, created/updated GROUP_' + 
         target_data.client | upper  + ' group in firewall. Please check the results  \n List of whitelisted IPs:\n' + target_data.ips | join(',') | replace(',', ',\n')}} "
   
